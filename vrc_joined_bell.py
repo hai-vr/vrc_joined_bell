@@ -6,12 +6,9 @@ import os
 import psutil
 import re
 import sys
-import threading
 import time
 import wave
 import yaml
-
-from flask import Flask
 
 # disable pygame version log
 os.environ["PYGAME_HIDE_SUPPORT_PROMPT"] = "hide"
@@ -103,36 +100,6 @@ logger = logging.getLogger(__name__)
 log_io = io.StringIO()
 
 
-def toggle_server(host, port):
-    srv = Flask(__name__)
-    log = logging.getLogger("werkzeug")
-    log.disabled = True
-    srv.logger.disabled = True
-
-    logger.info("start toggle server")
-
-    @srv.route("/log")
-    def log():
-        value = log_io.getvalue().replace("\n", "<br>")
-        return f"{value}"
-
-    @srv.route("/toggle")
-    def toggle():
-        global enable_server_silent
-        enable_server_silent = not enable_server_silent
-
-        logger.info(f"silent mode status change to {enable_server_silent} ")
-
-        return f"STATUS {enable_server_silent}"
-
-    @srv.route("/state")
-    def show():
-        global enable_server_silent
-        return f"STATUS {enable_server_silent}"
-
-    srv.run(host=host, port=port)
-
-
 def process_kill_by_name(name):
     pid = os.getpid()
     for p in psutil.process_iter(attrs=["pid", "name"]):
@@ -167,18 +134,6 @@ def main():
         if "message" in notice:
             data[notice["event"]].append(notice["message"])
             logger.info("        " + notice["message"])
-
-    if config["silent"]["toggle_server"]:
-        try:
-            thread = threading.Thread(
-                target=toggle_server,
-                args=(config["silent"]["host"], config["silent"]["port"]),
-            )
-            thread.start()
-        except:
-            import traceback
-
-            traceback.print_exc()
 
     start = datetime.datetime.strptime(
         config["silent"]["time"]["start"], "%H:%M:%S"
