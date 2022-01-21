@@ -35,57 +35,6 @@ def tail(thefile):
             time.sleep(0.5)
 
 
-def is_silent_exclude_days_of_week(exclude_days_of_week):
-    return datetime.datetime.now().strftime("%a") in exclude_days_of_week
-
-
-def is_silent(config, group):
-    if (
-        "toggle_server" in config["silent"]
-        and config["silent"]["toggle_server"]
-        and enable_server_silent
-    ):
-        return True
-
-    start = datetime.datetime.strptime(
-        config["silent"]["time"]["start"], "%H:%M:%S"
-    ).time()
-    end = datetime.datetime.strptime(config["silent"]["time"]["end"], "%H:%M:%S").time()
-
-    if not is_silent_time(start, end):
-        return False
-
-    if "match_group" in config["silent"]["exclude"] and is_silent_exclude_event(
-        config["silent"]["exclude"]["match_group"], group
-    ):
-        return False
-
-    if "days_of_week" in config["silent"]["exclude"] and is_silent_exclude_days_of_week(
-        config["silent"]["exclude"]["days_of_week"]
-    ):
-        return False
-
-    return True
-
-
-def is_silent_exclude_event(match_groups, group):
-    for match_group in match_groups:
-        if match_group == group:
-            return True
-
-    return False
-
-
-def is_silent_time(start, end):
-    if start == end:
-        return False
-    now = datetime.datetime.now().time()
-    if start <= end:
-        return start <= now <= end
-    else:
-        return start <= now or now <= end
-
-
 def play(data_path, volume):
     with wave.open(data_path, "rb") as wave_file:
         frame_rate = wave_file.getframerate()
@@ -95,7 +44,6 @@ def play(data_path, volume):
     player.play()
 
 
-enable_server_silent = False
 logger = logging.getLogger(__name__)
 log_io = io.StringIO()
 
@@ -135,36 +83,6 @@ def main():
             data[notice["event"]].append(notice["message"])
             logger.info("        " + notice["message"])
 
-    start = datetime.datetime.strptime(
-        config["silent"]["time"]["start"], "%H:%M:%S"
-    ).time()
-    end = datetime.datetime.strptime(config["silent"]["time"]["end"], "%H:%M:%S").time()
-    behavior = config["silent"]["behavior"]
-    volume = config["silent"]["volume"]
-    logger.info("sleep time behavior {} {} {} {}".format(behavior, start, "-", end))
-
-    enableCevio = False
-    if "cevio" in config:
-        import clr
-
-        try:
-            sys.path.append(os.path.abspath(config["cevio"]["dll"]))
-
-            logger.info("CeVIO dll: " + config["cevio"]["dll"])
-            clr.AddReference("CeVIO.Talk.RemoteService")
-            import CeVIO.Talk.RemoteService as cs
-
-            cs.ServiceControl.StartHost(False)
-            talker = cs.Talker()
-            talker.Cast = config["cevio"]["cast"]
-            talker.Volume = 100
-            enableCevio = True
-            logger.info("cast: " + config["cevio"]["cast"])
-        except:
-            import traceback
-
-            traceback.print_exc()
-
     vrcdir = os.environ["USERPROFILE"] + "\\AppData\\LocalLow\\VRChat\\VRChat\\"
     logfiles = glob.glob(vrcdir + "output_log_*.txt")
     logfiles.sort(key=os.path.getctime, reverse=True)
@@ -189,27 +107,8 @@ def main():
                     group = ""
                     if len(match.groups()) > 0:
                         group = match.group(1)
-                    silent_time = is_silent(config, group)
 
-                    if behavior == "ignore" and silent_time:
-                        break
-
-                    if behavior == "volume_down" and silent_time:
-                        play_volume = volume
-                    else:
-                        play_volume = 1.0
-
-                    if enableCevio and len(item) == 4:
-                        talker.Volume = play_volume * 100
-                        group = re.sub(r"[-―]", "", group)
-                        if (
-                            len(talker.GetPhonemes(group)) != 0
-                            and len(talker.GetPhonemes(group))
-                            <= config["cevio"]["max_phonemes"]
-                        ):
-                            state = talker.Speak(group + item[COLUMN_MESSAGE])
-                            state.Wait()
-                            break
+                    play_volume = 1.0
 
                     play(item[COLUMN_SOUND], play_volume)
                     break
